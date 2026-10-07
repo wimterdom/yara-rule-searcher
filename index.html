@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>YARA 規則搜尋 · YARA Forge Rule Searcher</title>
+<meta name="description" content="快速搜尋 YARA Forge 最新釋出的 YARA 規則，一鍵複製並於線上編輯器修改。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2323529E'/%3E%3Cpath d='M14 22h36l-6 9H31v15h-9V31h-8z' fill='%23F3E2C0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<script>
+  /* 先套用主題，避免閃爍 */
+  (function () {
+    try {
+      var t = localStorage.getItem('yrs-theme');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div id="app" class="app" data-view="search">
+
+  <header class="topbar">
+    <a class="brand" href="#/" aria-label="YARA 規則搜尋 首頁">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14"/><path d="M14 22h36l-6 9H31v15h-9V31h-8z"/></svg>
+      <span class="brand-text"><span class="brand-title">YARA 規則搜尋</span><span class="brand-sub" id="releaseLabel">載入中</span></span>
+    </a>
+    <nav class="viewswitch" role="tablist" aria-label="切換頁面">
+      <button role="tab" class="vs-btn" data-go="search" aria-selected="true">搜尋</button>
+      <button role="tab" class="vs-btn" data-go="editor" aria-selected="false">編輯器<span class="vs-dot" id="editorDot" hidden></span></button>
+    </nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="aboutBtn" title="資料來源與授權" aria-label="資料來源與授權">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+      </button>
+      <button class="icon-btn" id="themeBtn" title="切換日間／夜間模式" aria-label="切換日間／夜間模式">
+        <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>
+        <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ============ 搜尋頁 ============ -->
+  <main class="view view-search" id="viewSearch">
+    <section class="searchbar">
+      <div class="q-wrap">
+        <svg class="q-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+        <input id="q" type="search" autocomplete="off" spellcheck="false"
+          placeholder="搜尋規則名稱、描述、作者、標籤或樣本雜湊值" aria-label="搜尋規則">
+        <kbd class="q-kbd" aria-hidden="true">/</kbd>
+      </div>
+      <div class="filters">
+        <div class="seg" role="radiogroup" aria-label="規則套件" id="tierSeg">
+          <button role="radio" data-tier="0" aria-checked="false">Core <span class="seg-n" data-n="0"></span></button>
+          <button role="radio" data-tier="1" aria-checked="false">Extended <span class="seg-n" data-n="1"></span></button>
+          <button role="radio" data-tier="2" aria-checked="true">Full <span class="seg-n" data-n="2"></span></button>
+        </div>
+        <label class="field">
+          <span class="field-label">來源</span>
+          <select id="repoSel"><option value="">全部來源</option></select>
+        </label>
+        <label class="field">
+          <span class="field-label">分數</span>
+          <select id="scoreSel">
+            <option value="0">不限</option>
+            <option value="50">≥ 50</option>
+            <option value="60">≥ 60</option>
+            <option value="70">≥ 70</option>
+            <option value="80">≥ 80</option>
+            <option value="90">≥ 90</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">排序</span>
+          <select id="sortSel">
+            <option value="auto">相關度</option>
+            <option value="score">分數高到低</option>
+            <option value="modified">最近修改</option>
+            <option value="name">名稱 A–Z</option>
+          </select>
+        </label>
+        <label class="check">
+          <input type="checkbox" id="bodyChk">
+          <span>一併搜尋規則內容（字串、條件、雜湊）</span>
+        </label>
+      </div>
+      <details class="syntax">
+        <summary>進階搜尋語法</summary>
+        <div class="syntax-body">
+          <p>多個關鍵字以空白分隔，需全部符合；以引號包住片語。可用欄位前綴：</p>
+          <ul>
+            <li><code>repo:LOLDrivers</code> 來源專案</li>
+            <li><code>author:"Florian Roth"</code> 作者</li>
+            <li><code>tag:APT</code> 規則標籤</li>
+            <li><code>name:Emotet</code> 只比對規則名稱</li>
+            <li><code>mod:dotnet</code> 使用的模組（pe、elf、dotnet…）</li>
+            <li><code>score&gt;=80</code> 分數條件</li>
+            <li><code>-webshell</code> 排除含此字的規則</li>
+          </ul>
+          <p>輸入 MD5／SHA1／SHA256 雜湊值時，會自動搜尋規則內容中的樣本雜湊。</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="results-layout">
+      <div class="results-col">
+        <div class="results-head">
+          <p class="results-count" id="resultCount" aria-live="polite"></p>
+          <button class="text-btn" id="exportBtn" title="把目前所有搜尋結果合併成一個規則檔下載">下載全部結果</button>
+        </div>
+        <ol class="results" id="results" role="listbox" tabindex="-1" aria-label="搜尋結果"></ol>
+        <button class="more-btn" id="moreBtn" hidden>顯示更多</button>
+      </div>
+
+      <article class="detail" id="detail" aria-live="polite">
+        <div class="detail-empty" id="detailEmpty">
+          <h2>從左側選擇一條規則</h2>
+          <p>或試試這些搜尋：</p>
+          <div class="examples" id="examples"></div>
+          <dl class="stats" id="stats"></dl>
+        </div>
+        <div class="detail-body" id="detailBody" hidden>
+          <button class="back-btn" id="backBtn" type="button">返回結果</button>
+          <header class="d-head">
+            <h2 class="d-name" id="dName"></h2>
+            <div class="d-badges" id="dBadges"></div>
+            <p class="d-desc" id="dDesc"></p>
+          </header>
+          <div class="d-actions">
+            <button class="btn primary" id="copyBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span>複製規則</span></button>
+            <button class="btn" id="toEditorBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg><span>在編輯器開啟</span></button>
+            <button class="btn ghost" id="downloadBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>下載</span></button>
+            <label class="check small">
+              <input type="checkbox" id="bundleChk" checked>
+              <span>自動附上所需 import 與相依規則</span>
+            </label>
+          </div>
+          <p class="d-note" id="dNote" hidden></p>
+          <dl class="d-meta" id="dMeta"></dl>
+          <div class="codebox">
+            <div class="codebox-bar"><span id="dLines"></span><button class="text-btn" id="wrapBtn" aria-pressed="false">自動換行</button></div>
+            <div class="code" id="dCode"><pre class="gutter" id="dGutter" aria-hidden="true"></pre><pre class="src" id="dSrc"></pre></div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- ============ 編輯器頁 ============ -->
+  <main class="view view-editor" id="viewEditor" hidden>
+    <div class="ed-toolbar">
+      <div class="ed-title">
+        <input id="edName" class="ed-filename" value="custom_rule.yar" spellcheck="false" aria-label="檔名">
+        <span class="ed-state" id="edState">未修改</span>
+      </div>
+      <div class="ed-buttons">
+        <button class="btn primary" id="edCopy"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span>複製修正後的規則</span></button>
+        <button class="btn" id="edDownload"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span>下載</span></button>
+        <button class="btn ghost" id="edPaste" title="從剪貼簿貼上">貼上</button>
+        <button class="btn ghost" id="edFind" title="尋找與取代（Ctrl+F）">尋找</button>
+        <button class="btn ghost" id="edTemplate" title="插入新的規則範本">新範本</button>
+        <button class="btn ghost" id="edRevert" title="還原為載入時的內容">還原</button>
+        <button class="btn ghost danger" id="edClear">清空</button>
+      </div>
+    </div>
+
+    <div class="findbar" id="findbar" hidden>
+      <input id="findIn" placeholder="尋找" spellcheck="false" aria-label="尋找">
+      <input id="replIn" placeholder="取代為" spellcheck="false" aria-label="取代為">
+      <label class="check small"><input type="checkbox" id="findCase"><span>大小寫</span></label>
+      <span class="find-count" id="findCount"></span>
+      <button class="text-btn" id="findPrev">上一個</button>
+      <button class="text-btn" id="findNext">下一個</button>
+      <button class="text-btn" id="replOne">取代</button>
+      <button class="text-btn" id="replAll">全部取代</button>
+      <button class="text-btn" id="findClose" aria-label="關閉尋找列">關閉</button>
+    </div>
+
+    <div class="ed-layout">
+      <div class="ed-main">
+        <div class="editor" id="editor">
+          <pre class="gutter" id="edGutter" aria-hidden="true"></pre>
+          <div class="ed-scroll">
+            <pre class="ed-hl" id="edHl" aria-hidden="true"></pre>
+            <textarea id="edText" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="YARA 規則編輯區"></textarea>
+          </div>
+        </div>
+        <div class="ed-status" id="edStatus">
+          <span id="stPos">行 1，欄 1</span>
+          <span id="stSize"></span>
+          <span id="stRules"></span>
+          <span class="st-lint" id="stLint"></span>
+        </div>
+      </div>
+      <aside class="ed-side">
+        <section class="panel">
+          <h3>語法檢查</h3>
+          <ul class="lint" id="lintList"></ul>
+        </section>
+        <section class="panel">
+          <h3>規則大綱</h3>
+          <ul class="outline" id="outline"></ul>
+        </section>
+        <section class="panel panel-help">
+          <h3>快捷鍵</h3>
+          <dl class="keys">
+            <dt><kbd>Tab</kbd> ／ <kbd>Shift</kbd>+<kbd>Tab</kbd></dt><dd>縮排／取消縮排</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>/</kbd></dt><dd>註解切換</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>F</kbd></dt><dd>尋找與取代</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>D</kbd></dt><dd>複製目前這一行</dd>
+            <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd></dt><dd>複製全部內容</dd>
+          </dl>
+          <p class="panel-note">檢查為瀏覽器端的輕量檢查，正式部署前請以 <code>yara</code> 或 <code>yarac</code> 編譯驗證。</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <p>規則資料來自 <a href="https://github.com/YARAHQ/yara-forge" target="_blank" rel="noopener">YARA Forge</a>，每條規則依其原始來源授權（見規則中的 <code>license_url</code>）。<a id="offlineLink" href="dist/yara-rule-searcher-standalone.html" download hidden>下載離線單檔版</a></p>
+  </footer>
+
+  <div class="loading" id="loading">
+    <div class="loading-card">
+      <svg class="brand-mark big" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14"/><path d="M14 22h36l-6 9H31v15h-9V31h-8z"/></svg>
+      <p id="loadingText">正在載入本地規則庫…</p>
+      <div class="bar"><span></span></div>
+    </div>
+  </div>
+
+  <dialog class="modal" id="aboutDlg">
+    <form method="dialog" class="modal-inner">
+      <h2>資料來源與授權</h2>
+      <p id="aboutIntro"></p>
+      <div class="repo-table-wrap"><table class="repo-table"><thead><tr><th>來源</th><th>規則數</th><th>授權</th></tr></thead><tbody id="repoRows"></tbody></table></div>
+      <div class="modal-actions"><button class="btn primary" value="close">關閉</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="mergeDlg">
+    <form method="dialog" class="modal-inner small">
+      <h2>編輯器裡已有修改過的內容</h2>
+      <p>要怎麼處理新規則？</p>
+      <div class="modal-actions">
+        <button class="btn ghost" value="cancel">取消</button>
+        <button class="btn" value="append">附加在後面</button>
+        <button class="btn primary" value="replace">取代目前內容</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script src="assets/yara-lang.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

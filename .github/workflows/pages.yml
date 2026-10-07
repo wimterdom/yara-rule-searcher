@@ -1,0 +1,85 @@
+name: 更新 YARA Forge 規則並部署 GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * *"   # 每天 03:17 UTC（台灣 11:17）檢查是否有新版
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 檢查並下載最新 YARA Forge 規則
+        if: github.event_name != 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/build_db.py
+
+      - name: 提交規則更新
+        id: commit
+        if: github.event_name != 'push'
+        run: |
+          if [ -z "$(git status --porcelain data/)" ]; then
+            echo "規則沒有變更"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git commit -m "chore(rules): 更新 YARA Forge 規則至 $(jq -r .release data/version.json)"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: 決定是否部署
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ steps.commit.outputs.changed }}" != "true" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 產生離線單檔版並整理網站檔案
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          python3 scripts/build_standalone.py
+          mkdir -p _site/dist
+          cp -r index.html assets data _site/
+          cp dist/yara-rule-searcher-standalone.html _site/dist/
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.decide.outputs.deploy == 'true'
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
