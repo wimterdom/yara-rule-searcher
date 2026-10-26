@@ -1,10 +1,10 @@
 {
-  "release": "20261018",
-  "built": "2026-10-18T08:02:36Z",
-  "rules": 12452,
+  "release": "20261026",
+  "built": "2026-10-26T08:56:12Z",
+  "rules": 12455,
   "tier_counts": {
-    "core": 5137,
-    "extended": 10811,
-    "full": 12452
+    "core": 5128,
+    "extended": 10816,
+    "full": 12455
   }
 }
